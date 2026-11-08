@@ -1,7 +1,9 @@
 const TIMER_IDS = ["understanding", "production", "interaction"];
 const HOTKEYS = { "1": "understanding", "2": "production", "3": "interaction" };
-const WORDS_REFERENCE = 100;
-const SENTENCES_REFERENCE = 20;
+const WORDS_REFERENCE = 15;      // maximum for "number of new words"
+const SENTENCES_REFERENCE = 8;   // maximum for "number of new sentences"
+const TIMER_MIN_RATIO = 0.2;     // dynamic timer scale: smallest value at 20% of the radius
+const TIMER_EQUAL_RATIO = 0.75;  // identical non-zero values
 
 const timers = Object.fromEntries(TIMER_IDS.map(id => [id, { startedAt: null, elapsedMs: 0 }]));
 const keyPressCounts = { "1": 0, "2": 0, "3": 0 };
@@ -75,12 +77,23 @@ function updateChart() {
   const words = getNumericValue("number-words");
   const sentences = getNumericValue("number-sentences");
 
-  // Every axis is normalized independently: activity time / session duration,
-  // words / 100, sentences / 20. Values above the reference are capped at 100%.
+  // Timer axes use a dynamic scale shared by the three timers:
+  // a timer at zero stays at 0. Among the non-zero timers, the smallest value
+  // -> 20% of the radius, the largest -> 100%, others proportional.
+  // Identical non-zero values -> 75%. All zero -> 0.
+  const timerValues = TIMER_IDS.map(id => currentElapsed(id));
+  const nonZero = timerValues.filter(v => v > 0);
+  const timerMin = nonZero.length ? Math.min(...nonZero) : 0;
+  const timerMax = nonZero.length ? Math.max(...nonZero) : 0;
+  const timerRatios = timerValues.map(v => {
+    if (v <= 0) return 0;
+    if (timerMax === timerMin) return TIMER_EQUAL_RATIO;
+    return TIMER_MIN_RATIO + (1 - TIMER_MIN_RATIO) * (v - timerMin) / (timerMax - timerMin);
+  });
+
+  // New words / new sentences use fixed scales (15 and 8), capped at 100%.
   const values = [
-    sessionMs ? Math.min(currentElapsed("understanding") / sessionMs, 1) : 0,
-    sessionMs ? Math.min(currentElapsed("production") / sessionMs, 1) : 0,
-    sessionMs ? Math.min(currentElapsed("interaction") / sessionMs, 1) : 0,
+    ...timerRatios,
     Math.min(words / WORDS_REFERENCE, 1),
     Math.min(sentences / SENTENCES_REFERENCE, 1)
   ];
