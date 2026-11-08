@@ -1,293 +1,224 @@
-
 const TIMER_IDS = ["understanding", "production", "interaction"];
+const HOTKEYS = { "1": "understanding", "2": "production", "3": "interaction" };
+const WORDS_REFERENCE = 100;
+const SENTENCES_REFERENCE = 20;
 
-const timers = Object.fromEntries(
-  TIMER_IDS.map((id) => [
-    id,
-    {
-      startedAt: null,
-      elapsedMs: 0
-    }
-  ])
-);
+const timers = Object.fromEntries(TIMER_IDS.map(id => [id, { startedAt: null, elapsedMs: 0 }]));
+const keyPressCounts = { "1": 0, "2": 0, "3": 0 };
 
-// Convertit les millisecondes en affichage MM:SS ou HH:MM:SS
-const display = (milliseconds) => {
+function display(milliseconds) {
   const totalSeconds = Math.floor(milliseconds / 1000);
-
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
+  return hours > 0
+    ? `${String(hours).padStart(2,"0")}:${String(remainingMinutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`
+    : `${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
+}
 
-  if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(remainingMinutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-};
-
-
-// Calcule le temps écoulé, y compris si le chronomètre fonctionne
 function currentElapsed(id, now = Date.now()) {
   const timer = timers[id];
-
-  return timer.elapsedMs +
-    (timer.startedAt === null ? 0 : now - timer.startedAt);
+  return timer.elapsedMs + (timer.startedAt === null ? 0 : now - timer.startedAt);
 }
 
-
-// Met à jour l'affichage d'un chronomètre
 function updateTimerUI(id) {
   const timer = timers[id];
-
   const running = timer.startedAt !== null;
-
-  document.getElementById(`display-${id}`).textContent =
-    display(currentElapsed(id));
-
-  document.getElementById(`total-${id}`).textContent =
-    display(timer.elapsedMs);
-
-  document.querySelector(
-    `[data-action="start"][data-target="${id}"]`
-  ).disabled = running;
-
-  document.querySelector(
-    `[data-action="pause"][data-target="${id}"]`
-  ).disabled = !running;
-
+  document.getElementById(`display-${id}`).textContent = display(currentElapsed(id));
+  document.getElementById(`total-${id}`).textContent = display(timer.elapsedMs);
+  document.querySelector(`[data-action="start"][data-target="${id}"]`).disabled = running;
+  document.querySelector(`[data-action="pause"][data-target="${id}"]`).disabled = !running;
+  const key = Object.keys(HOTKEYS).find(number => HOTKEYS[number] === id);
   document.getElementById(`status-${id}`).textContent =
-    running
-      ? "Running"
-      : (timer.elapsedMs > 0 ? "Paused" : "Ready");
+    `${running ? "Running" : (timer.elapsedMs > 0 ? "Paused" : "Ready")} · Key ${key}`;
 }
 
+function getSessionDurationMinutes() {
+  const startValue = document.getElementById("session-start").value;
+  const endValue = document.getElementById("session-end").value;
+  if (!startValue || !endValue) return null;
+  const [sh, sm] = startValue.split(":").map(Number);
+  const [eh, em] = endValue.split(":").map(Number);
+  const start = sh * 60 + sm;
+  let end = eh * 60 + em;
+  if (end < start) end += 24 * 60; // Session crossing midnight.
+  return end - start;
+}
 
-// Met à jour le graphique radar
+function getNumericValue(id) {
+  const value = Number(document.getElementById(id).value);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function updateSessionDuration() {
+  const duration = getSessionDurationMinutes();
+  const output = document.getElementById("session-duration");
+  const error = document.getElementById("session-time-error");
+  if (duration === null) {
+    output.textContent = "— min";
+    error.textContent = "";
+  } else if (duration === 0) {
+    output.textContent = "0 min";
+    error.textContent = "The beginning and end times are identical. Please check the session times.";
+  } else {
+    output.textContent = `${duration} min`;
+    error.textContent = "";
+  }
+  updateChart();
+  updateExportState();
+}
+
 function updateChart() {
+  const sessionMinutes = getSessionDurationMinutes();
+  const sessionMs = sessionMinutes > 0 ? sessionMinutes * 60000 : null;
+  const words = getNumericValue("number-words");
+  const sentences = getNumericValue("number-sentences");
 
-  const values = TIMER_IDS.map(
-    (id) => timers[id].elapsedMs
-  );
-
-  // La valeur maximale détermine l'échelle du radar
-  const maxValue = Math.max(...values, 1000);
-
-  const center = {
-    x: 250,
-    y: 220
-  };
-
-  // Les trois sommets du triangle
-  const vertices = [
-    { x: 250, y: 65 },
-    { x: 95, y: 335 },
-    { x: 405, y: 335 }
+  // Every axis is normalized independently: activity time / session duration,
+  // words / 100, sentences / 20. Values above the reference are capped at 100%.
+  const values = [
+    sessionMs ? Math.min(currentElapsed("understanding") / sessionMs, 1) : 0,
+    sessionMs ? Math.min(currentElapsed("production") / sessionMs, 1) : 0,
+    sessionMs ? Math.min(currentElapsed("interaction") / sessionMs, 1) : 0,
+    Math.min(words / WORDS_REFERENCE, 1),
+    Math.min(sentences / SENTENCES_REFERENCE, 1)
   ];
 
-  // Calcule les sommets intermédiaires
-  const pointsFor = (factor) => {
+  const center = { x: 300, y: 260 };
+  const radius = 175;
+  const vertices = Array.from({ length: 5 }, (_, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / 5);
+    return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+  });
 
-    return vertices.map((vertex) => ({
-      x: center.x + (vertex.x - center.x) * factor,
-      y: center.y + (vertex.y - center.y) * factor
-    }));
-
-  };
-
-  // Construction de la grille du radar
   const grid = document.getElementById("radar-grid");
-
   grid.innerHTML = "";
 
-  // Quatre niveaux de référence
-  [0.25, 0.5, 0.75, 1].forEach((factor) => {
-
-    const points = pointsFor(factor)
-      .map((p) => `${p.x},${p.y}`)
-      .join(" ");
-
-    const polygon = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "polygon"
-    );
-
+  [0.2, 0.4, 0.6, 0.8, 1].forEach(factor => {
+    const points = vertices.map(v =>
+      `${center.x + (v.x-center.x)*factor},${center.y + (v.y-center.y)*factor}`
+    ).join(" ");
+    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
     polygon.setAttribute("points", points);
-
     grid.appendChild(polygon);
-
   });
 
-  // Lignes reliant le centre aux trois sommets
-  vertices.forEach((vertex) => {
-
-    const line = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "line"
-    );
-
+  vertices.forEach(vertex => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
     line.setAttribute("x1", center.x);
     line.setAttribute("y1", center.y);
-
     line.setAttribute("x2", vertex.x);
     line.setAttribute("y2", vertex.y);
-
     grid.appendChild(line);
-
   });
 
-  // Calcul des trois points correspondant aux temps cumulés
-  const dataPoints = vertices.map((vertex, index) => {
-
-    const factor = values[index] / maxValue;
-
-    return {
-      x: center.x + (vertex.x - center.x) * factor,
-      y: center.y + (vertex.y - center.y) * factor
-    };
-
-  });
-
-  // Mise à jour de la surface colorée du radar
+  const dataPoints = vertices.map((vertex, i) => ({
+    x: center.x + (vertex.x-center.x)*values[i],
+    y: center.y + (vertex.y-center.y)*values[i]
+  }));
   document.getElementById("radar-data").setAttribute(
-    "points",
-    dataPoints
-      .map((p) => `${p.x},${p.y}`)
-      .join(" ")
+    "points", dataPoints.map(p => `${p.x},${p.y}`).join(" ")
   );
 
-  // Mise à jour des valeurs affichées à côté du graphique
-  TIMER_IDS.forEach((id) => {
-
-    document.getElementById(`chart-${id}`).textContent =
-      display(timers[id].elapsedMs);
-
-  });
-
+  document.getElementById("chart-understanding").textContent = display(currentElapsed("understanding"));
+  document.getElementById("chart-production").textContent = display(currentElapsed("production"));
+  document.getElementById("chart-interaction").textContent = display(currentElapsed("interaction"));
+  document.getElementById("chart-words").textContent = words;
+  document.getElementById("chart-sentences").textContent = sentences;
 }
 
-
-// Démarre un chronomètre
 function startTimer(id) {
-
-  const timer = timers[id];
-
-  if (timer.startedAt !== null) return;
-
-  timer.startedAt = Date.now();
-
+  if (timers[id].startedAt !== null) return;
+  timers[id].startedAt = Date.now();
   updateTimerUI(id);
-
 }
 
-
-// Met en pause un chronomètre et ajoute le temps au cumul
 function pauseTimer(id) {
-
   const timer = timers[id];
-
   if (timer.startedAt === null) return;
-
   timer.elapsedMs += Date.now() - timer.startedAt;
-
   timer.startedAt = null;
-
   updateTimerUI(id);
-
-  // Chaque pause actualise le graphique
   updateChart();
-
 }
 
-
-// Gestion des boutons START
-document.querySelectorAll(
-  "[data-action='start']"
-).forEach((button) => {
-
-  button.addEventListener("click", () => {
-
-    startTimer(button.dataset.target);
-
-  });
-
+document.querySelectorAll('[data-action="start"]').forEach(button => {
+  button.addEventListener("click", () => startTimer(button.dataset.target));
+});
+document.querySelectorAll('[data-action="pause"]').forEach(button => {
+  button.addEventListener("click", () => pauseTimer(button.dataset.target));
 });
 
+// Successive presses of each number key alternate Start / Pause.
+// Shortcuts are ignored while typing in an input or textarea.
+document.addEventListener("keydown", event => {
+  if (!Object.prototype.hasOwnProperty.call(HOTKEYS, event.key)) return;
+  if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+  const tag = event.target?.tagName?.toLowerCase();
+  if (["input", "textarea", "select"].includes(tag) || event.target?.isContentEditable) return;
+  event.preventDefault();
 
-// Gestion des boutons PAUSE
-document.querySelectorAll(
-  "[data-action='pause']"
-).forEach((button) => {
-
-  button.addEventListener("click", () => {
-
-    pauseTimer(button.dataset.target);
-
-  });
-
+  keyPressCounts[event.key] += 1;
+  const id = HOTKEYS[event.key];
+  if (keyPressCounts[event.key] % 2 === 1) startTimer(id);
+  else pauseTimer(id);
 });
 
+document.getElementById("reset-button").addEventListener("click", () => {
+  const anyRunning = TIMER_IDS.some(id => timers[id].startedAt !== null);
+  if (anyRunning && !window.confirm("A timer is still running. Reset all timers anyway?")) return;
 
-// Bouton RESET SESSION
-document.getElementById("reset-button").addEventListener(
-  "click",
-  () => {
+  TIMER_IDS.forEach(id => {
+    timers[id].startedAt = null;
+    timers[id].elapsedMs = 0;
+    updateTimerUI(id);
+  });
+  Object.keys(keyPressCounts).forEach(key => { keyPressCounts[key] = 0; });
+  document.getElementById("number-words").value = 0;
+  document.getElementById("number-sentences").value = 0;
+  updateChart();
+});
 
-    const anyRunning = TIMER_IDS.some(
-      (id) => timers[id].startedAt !== null
-    );
+document.getElementById("session-start").addEventListener("input", updateSessionDuration);
+document.getElementById("session-end").addEventListener("input", updateSessionDuration);
+document.getElementById("number-words").addEventListener("input", updateChart);
+document.getElementById("number-sentences").addEventListener("input", updateChart);
 
-    if (
-      anyRunning &&
-      !window.confirm(
-        "A timer is still running. Reset all timers anyway?"
-      )
-    ) {
-      return;
-    }
+function updateExportState() {
+  const start = document.getElementById("session-start").value;
+  const end = document.getElementById("session-end").value;
+  const duration = getSessionDurationMinutes();
+  const valid = Boolean(start && end && duration > 0);
+  document.getElementById("export-pdf").disabled = !valid;
+  document.getElementById("export-message").textContent = valid
+    ? "Your session is ready to export."
+    : "Enter valid beginning and end times to export the session.";
+}
 
-    TIMER_IDS.forEach((id) => {
-
-      timers[id].startedAt = null;
-
-      timers[id].elapsedMs = 0;
-
-      updateTimerUI(id);
-
-    });
-
-    updateChart();
-
+document.getElementById("export-pdf").addEventListener("click", () => {
+  const duration = getSessionDurationMinutes();
+  if (!document.getElementById("session-start").value ||
+      !document.getElementById("session-end").value || !duration || duration <= 0) {
+    updateExportState();
+    return;
   }
-);
+  TIMER_IDS.forEach(updateTimerUI);
+  updateChart();
+  window.print(); // Choose "Save as PDF" in the browser print dialog.
+});
 
-
-// Actualisation continue des chronomètres en fonctionnement
 function refreshRunningDisplays() {
-
-  TIMER_IDS.forEach((id) => {
-
+  TIMER_IDS.forEach(id => {
     if (timers[id].startedAt !== null) {
-
-      document.getElementById(`display-${id}`).textContent =
-        display(currentElapsed(id));
-
+      document.getElementById(`display-${id}`).textContent = display(currentElapsed(id));
     }
-
   });
-
+  updateChart();
   window.requestAnimationFrame(refreshRunningDisplays);
-
 }
 
-
-// Initialisation des trois chronomètres
 TIMER_IDS.forEach(updateTimerUI);
-
-// Initialisation du graphique
+updateSessionDuration();
 updateChart();
-
-// Lancement de l'actualisation des affichages
 window.requestAnimationFrame(refreshRunningDisplays);
