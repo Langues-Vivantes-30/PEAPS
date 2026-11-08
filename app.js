@@ -2,8 +2,9 @@ const TIMER_IDS = ["understanding", "production", "interaction"];
 const HOTKEYS = { "1": "understanding", "2": "production", "3": "interaction" };
 const WORDS_REFERENCE = 15;      // maximum for "number of new words"
 const SENTENCES_REFERENCE = 8;   // maximum for "number of new sentences"
-const TIMER_MIN_RATIO = 0.2;     // dynamic timer scale: smallest value at 20% of the radius
-const TIMER_EQUAL_RATIO = 0.75;  // identical non-zero values
+// Timer scale: "share" = share of the cumulated time of the 3 observed activities
+//              "max"   = ratio to the largest of the 3 timers (largest = 100%)
+const TIMER_SCALE_MODE = "share";
 
 const timers = Object.fromEntries(TIMER_IDS.map(id => [id, { startedAt: null, elapsedMs: 0 }]));
 const keyPressCounts = { "1": 0, "2": 0, "3": 0 };
@@ -77,19 +78,13 @@ function updateChart() {
   const words = getNumericValue("number-words");
   const sentences = getNumericValue("number-sentences");
 
-  // Timer axes use a dynamic scale shared by the three timers:
-  // a timer at zero stays at 0. Among the non-zero timers, the smallest value
-  // -> 20% of the radius, the largest -> 100%, others proportional.
-  // Identical non-zero values -> 75%. All zero -> 0.
+  // Timer axes: each timer is expressed relative to the 3 observed activities.
+  // A timer at zero stays at 0; all zero -> radar stays at 0.
   const timerValues = TIMER_IDS.map(id => currentElapsed(id));
-  const nonZero = timerValues.filter(v => v > 0);
-  const timerMin = nonZero.length ? Math.min(...nonZero) : 0;
-  const timerMax = nonZero.length ? Math.max(...nonZero) : 0;
-  const timerRatios = timerValues.map(v => {
-    if (v <= 0) return 0;
-    if (timerMax === timerMin) return TIMER_EQUAL_RATIO;
-    return TIMER_MIN_RATIO + (1 - TIMER_MIN_RATIO) * (v - timerMin) / (timerMax - timerMin);
-  });
+  const timerTotal = timerValues.reduce((s, v) => s + v, 0);
+  const timerMax = Math.max(...timerValues);
+  const timerDenominator = TIMER_SCALE_MODE === "max" ? timerMax : timerTotal;
+  const timerRatios = timerValues.map(v => (timerDenominator > 0 ? v / timerDenominator : 0));
 
   // New words / new sentences use fixed scales (15 and 8), capped at 100%.
   const values = [
