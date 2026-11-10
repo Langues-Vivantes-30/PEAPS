@@ -12,7 +12,7 @@
 
 <section class="session-panel" aria-label="Session information">
   <div class="two-columns">
-    <label class="field"><span>Session title</span><textarea id="session-title" rows="1" placeholder="Enter the session title"></textarea></label>
+    <label class="field"><span>Title of the session</span><textarea id="session-title" rows="1" placeholder="Enter the session title"></textarea></label>
     <label class="field"><span>Level</span><textarea id="session-level" rows="1" placeholder="e.g. CE2 / CM1"></textarea></label>
   </div>
   <div class="two-columns time-fields">
@@ -60,14 +60,13 @@
       <div class="legend-item"><i class="dot words-dot"></i><span>Number of new words</span><strong id="chart-words">0</strong></div>
       <div class="legend-item"><i class="dot sentences-dot"></i><span>Number of new sentences</span><strong id="chart-sentences">0</strong></div>
       <p class="chart-note">Each pause adds the elapsed period to the activity total. The radar is updated when a timer is paused or an indicator is changed.</p>
-      <p class="scale-note">Radar scales: timers = share of the cumulated time of the 3 activities / new words max 15 / new sentences max 8.</p>
+      <p class="scale-note">Radar scales: timers = share of the cumulated time of the 3 activities (square-root scale) / new words max 15 / new sentences max 8.</p>
     </aside>
   </div>
 </section>
 
 <div class="page-actions"><button id="export-pdf" class="button button-export" type="button" disabled>Export PDF</button><p id="export-message" class="export-message">Enter the beginning and end times to export the session.</p></div>
-<footer>PEAPS · Practising English At Primary School
-<br>This tool has been designed for the teaching staff at the school in Saint-Laurent-des-Arbres (Gard, France)</footer>
+<footer>PEAPS · Practising English At Primary School</footer>
 </main>
 <script src="app.js"></script>
 </body>

@@ -5,6 +5,10 @@ const SENTENCES_REFERENCE = 8;   // maximum for "number of new sentences"
 // Timer scale: "share" = share of the cumulated time of the 3 observed activities
 //              "max"   = ratio to the largest of the 3 timers (largest = 100%)
 const TIMER_SCALE_MODE = "share";
+// Visual enlargement of the timer axes: displayed radius = share ^ exponent.
+// 1 = linear (thirds at 33%), 0.5 = square root (thirds at 58%), lower = larger.
+// 0 stays at 0, and 100% is only reached if a single activity holds all the time.
+const TIMER_SHARE_EXPONENT = 0.5;
 
 const timers = Object.fromEntries(TIMER_IDS.map(id => [id, { startedAt: null, elapsedMs: 0 }]));
 const keyPressCounts = { "1": 0, "2": 0, "3": 0 };
@@ -84,7 +88,11 @@ function updateChart() {
   const timerTotal = timerValues.reduce((s, v) => s + v, 0);
   const timerMax = Math.max(...timerValues);
   const timerDenominator = TIMER_SCALE_MODE === "max" ? timerMax : timerTotal;
-  const timerRatios = timerValues.map(v => (timerDenominator > 0 ? v / timerDenominator : 0));
+  const timerRatios = timerValues.map(v => {
+    if (timerDenominator <= 0 || v <= 0) return 0;
+    const ratio = v / timerDenominator;
+    return TIMER_SCALE_MODE === "max" ? ratio : Math.pow(ratio, TIMER_SHARE_EXPONENT);
+  });
 
   // New words / new sentences use fixed scales (15 and 8), capped at 100%.
   const values = [
