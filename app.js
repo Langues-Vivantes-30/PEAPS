@@ -2,6 +2,7 @@ const TIMER_IDS = ["understanding", "production", "interaction"];
 const HOTKEYS = { "1": "understanding", "2": "production", "3": "interaction" };
 const WORDS_REFERENCE = 15;      // maximum for "number of new words"
 const SENTENCES_REFERENCE = 8;   // maximum for "number of new sentences"
+const STUDENTS_MAX = 35;         // maximum for "number of students"
 // Timer scale: "share" = share of the cumulated time of the 3 observed activities
 //              "max"   = ratio to the largest of the 3 timers (largest = 100%)
 const TIMER_SCALE_MODE = "share";
@@ -53,6 +54,53 @@ function getSessionDurationMinutes() {
   return end - start;
 }
 
+function getStudentsTotal() {
+  return Math.min(Math.floor(getNumericValue("number-students")), STUDENTS_MAX);
+}
+
+function getStudentsWhoSpeak() {
+  return Math.min(Math.floor(getNumericValue("number-speak")), getStudentsTotal());
+}
+
+function showStudentsMessage(text = "") {
+  document.getElementById("students-message").textContent = text;
+}
+
+// Keeps "students who speak" between 0 and the number of students.
+function syncSpeakField(message = true) {
+  const total = getStudentsTotal();
+  const speakInput = document.getElementById("number-speak");
+  speakInput.max = total;
+  const raw = speakInput.value === "" ? 0 : Math.floor(Number(speakInput.value));
+  if (Number.isFinite(raw) && raw > total) {
+    speakInput.value = total;
+    if (message) {
+      showStudentsMessage(total === 0
+        ? "Enter the number of students first."
+        : "The number of students who speak cannot exceed the number of students.");
+    }
+  } else if (Number.isFinite(raw) && raw < 0) {
+    speakInput.value = 0;
+  } else if (message) {
+    showStudentsMessage("");
+  }
+}
+
+function adjustStudentsWhoSpeak(delta) {
+  const total = getStudentsTotal();
+  const speakInput = document.getElementById("number-speak");
+  const current = getStudentsWhoSpeak();
+  if (delta > 0 && current >= total) {
+    showStudentsMessage(total === 0
+      ? "Enter the number of students first."
+      : "All students are already counted as having spoken.");
+    return;
+  }
+  speakInput.value = Math.max(0, Math.min(current + delta, total));
+  showStudentsMessage("");
+  updateChart();
+}
+
 function getNumericValue(id) {
   const value = Number(document.getElementById(id).value);
   return Number.isFinite(value) && value > 0 ? value : 0;
@@ -81,6 +129,8 @@ function updateChart() {
   const sessionMs = sessionMinutes > 0 ? sessionMinutes * 60000 : null;
   const words = getNumericValue("number-words");
   const sentences = getNumericValue("number-sentences");
+  const studentsTotal = getStudentsTotal();
+  const studentsWhoSpeak = getStudentsWhoSpeak();
 
   // Timer axes: each timer is expressed relative to the 3 observed activities.
   // A timer at zero stays at 0; all zero -> radar stays at 0.
@@ -98,13 +148,14 @@ function updateChart() {
   const values = [
     ...timerRatios,
     Math.min(words / WORDS_REFERENCE, 1),
-    Math.min(sentences / SENTENCES_REFERENCE, 1)
+    Math.min(sentences / SENTENCES_REFERENCE, 1),
+    studentsTotal > 0 ? Math.min(studentsWhoSpeak / studentsTotal, 1) : 0
   ];
 
   const center = { x: 300, y: 260 };
   const radius = 175;
-  const vertices = Array.from({ length: 5 }, (_, i) => {
-    const angle = -Math.PI / 2 + i * (2 * Math.PI / 5);
+  const vertices = Array.from({ length: 6 }, (_, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / 6);
     return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
   });
 
@@ -142,6 +193,9 @@ function updateChart() {
   document.getElementById("chart-interaction").textContent = display(currentElapsed("interaction"));
   document.getElementById("chart-words").textContent = words;
   document.getElementById("chart-sentences").textContent = sentences;
+  const speakPercent = studentsTotal > 0 ? Math.round(studentsWhoSpeak / studentsTotal * 100) : 0;
+  document.getElementById("chart-students").textContent =
+    `${studentsWhoSpeak} / ${studentsTotal} · ${speakPercent} %`;
 }
 
 function startTimer(id) {
@@ -191,15 +245,68 @@ document.getElementById("reset-button").addEventListener("click", () => {
     updateTimerUI(id);
   });
   Object.keys(keyPressCounts).forEach(key => { keyPressCounts[key] = 0; });
+  document.getElementById("session-title").value = "";
+  document.getElementById("session-level").value = "";
+  document.getElementById("session-start").value = "";
+  document.getElementById("session-end").value = "";
   document.getElementById("number-words").value = 0;
   document.getElementById("number-sentences").value = 0;
-  updateChart();
+  document.getElementById("number-students").value = 0;
+  document.getElementById("number-speak").value = 0;
+  syncSpeakField(false);
+  showStudentsMessage("");
+  updateSessionDuration();
 });
 
 document.getElementById("session-start").addEventListener("input", updateSessionDuration);
 document.getElementById("session-end").addEventListener("input", updateSessionDuration);
 document.getElementById("number-words").addEventListener("input", updateChart);
 document.getElementById("number-sentences").addEventListener("input", updateChart);
+
+// Number of students: typed only (no arrows), digits only, 0-35.
+const studentsInput = document.getElementById("number-students");
+studentsInput.addEventListener("focus", () => studentsInput.select());
+studentsInput.addEventListener("input", () => {
+  let digits = studentsInput.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (digits !== "" && Number(digits) > STUDENTS_MAX) {
+    digits = String(STUDENTS_MAX);
+    showStudentsMessage(`The maximum number of students is ${STUDENTS_MAX}.`);
+  } else {
+    showStudentsMessage("");
+  }
+  studentsInput.value = digits;
+  syncSpeakField(false);
+  updateChart();
+});
+studentsInput.addEventListener("blur", () => {
+  if (studentsInput.value === "") studentsInput.value = 0;
+  syncSpeakField();
+  updateChart();
+});
+
+// Number of students who speak: typed, arrows, or + / - keys. Never above the number of students.
+const speakInput = document.getElementById("number-speak");
+speakInput.addEventListener("focus", () => speakInput.select());
+speakInput.addEventListener("input", () => { syncSpeakField(); updateChart(); });
+speakInput.addEventListener("blur", () => {
+  if (speakInput.value === "") speakInput.value = 0;
+  syncSpeakField();
+  updateChart();
+});
+
+// + and - adjust the count (also with the numeric keypad). They work anywhere on the page
+// except while typing in another field; inside the "students who speak" field they replace typing a sign.
+document.addEventListener("keydown", event => {
+  if (event.key !== "+" && event.key !== "-") return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  const target = event.target;
+  const tag = target?.tagName?.toLowerCase();
+  const typingElsewhere = ["input", "textarea", "select"].includes(tag) || target?.isContentEditable;
+  if (typingElsewhere && target.id !== "number-speak") return;
+  event.preventDefault();
+  if (event.repeat) return;
+  adjustStudentsWhoSpeak(event.key === "+" ? 1 : -1);
+});
 
 function updateExportState() {
   const start = document.getElementById("session-start").value;

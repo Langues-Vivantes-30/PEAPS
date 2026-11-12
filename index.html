@@ -29,11 +29,14 @@
 </section>
 
 <section class="indicators-panel">
-  <div class="section-heading"><div><p class="eyebrow">LANGUAGE PRODUCTION</p><h2>Additional indicators</h2></div><p class="keyboard-hint">Keyboard shortcuts: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></p></div>
+  <div class="section-heading"><div><p class="eyebrow">LANGUAGE PRODUCTION</p><h2>Additional indicators</h2></div><p class="keyboard-hint">Keyboard shortcuts: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · students who speak: <kbd>+</kbd> <kbd>−</kbd></p></div>
   <div class="two-columns">
     <label class="field"><span>Number of new words</span><input id="number-words" type="number" min="0" step="1" value="0"></label>
     <label class="field"><span>Number of new sentences</span><input id="number-sentences" type="number" min="0" step="1" value="0"></label>
+	<label class="field"><span>Number of students</span><input id="number-students" type="text" inputmode="numeric" maxlength="2" autocomplete="off" value="0"></label>
+	<label class="field"><span>Number of students who speak</span><input id="number-speak" type="number" min="0" max="0" step="1" value="0"></label>
   </div>
+  <p id="students-message" class="field-error" aria-live="polite"></p>
 </section>
 
 <section class="chart-panel">
@@ -42,13 +45,14 @@
   <div class="chart-layout">
     <div class="radar-wrap">
       <svg id="radar-chart" viewBox="0 0 600 510" role="img" aria-label="Five-axis radar chart">
-        <g id="radar-grid"></g><polygon id="radar-data" points="300,260 300,260 300,260 300,260 300,260"></polygon>
+        <g id="radar-grid"></g><polygon id="radar-data" points="300,260 300,260 300,260 300,260 300,260 300,260"></polygon>
         <g id="radar-labels">
           <text x="300" y="28" text-anchor="middle">Understanding</text>
-          <text x="525" y="170" text-anchor="middle">Speaking</text><text x="525" y="189" text-anchor="middle">Production</text>
-          <text x="440" y="474" text-anchor="middle">Speaking</text><text x="440" y="493" text-anchor="middle">Interaction</text>
-          <text x="160" y="474" text-anchor="middle">Number of</text><text x="160" y="493" text-anchor="middle">new words</text>
-          <text x="75" y="170" text-anchor="middle">Number of</text><text x="75" y="189" text-anchor="middle">new sentences</text>
+          <text x="525" y="165" text-anchor="middle">Speaking</text><text x="525" y="184" text-anchor="middle">Production</text>
+          <text x="525" y="345" text-anchor="middle">Speaking</text><text x="525" y="364" text-anchor="middle">Interaction</text>
+          <text x="300" y="468" text-anchor="middle">Number of</text><text x="300" y="487" text-anchor="middle">new words</text>
+          <text x="75" y="345" text-anchor="middle">Number of</text><text x="75" y="364" text-anchor="middle">new sentences</text>
+          <text x="75" y="165" text-anchor="middle">% of students</text><text x="75" y="184" text-anchor="middle">who speak</text>
         </g>
       </svg>
     </div>
@@ -59,15 +63,15 @@
       <div class="legend-item"><i class="dot interaction-dot"></i><span>Speaking – Interaction</span><strong id="chart-interaction">00:00</strong></div>
       <div class="legend-item"><i class="dot words-dot"></i><span>Number of new words</span><strong id="chart-words">0</strong></div>
       <div class="legend-item"><i class="dot sentences-dot"></i><span>Number of new sentences</span><strong id="chart-sentences">0</strong></div>
+      <div class="legend-item"><i class="dot students-dot"></i><span>Students who speak</span><strong id="chart-students">0 / 0 · 0 %</strong></div>
       <p class="chart-note">Each pause adds the elapsed period to the activity total. The radar is updated when a timer is paused or an indicator is changed.</p>
-      <p class="scale-note">Radar scales: timers = share of the cumulated time of the 3 activities (square-root scale) / new words max 15 / new sentences max 8.</p>
+      <p class="scale-note">Radar scales: timers = share of the cumulated time of the 3 activities (square-root scale) / new words max 15 / new sentences max 8 / students who speak = percentage of the class.</p>
     </aside>
   </div>
 </section>
 
 <div class="page-actions"><button id="export-pdf" class="button button-export" type="button" disabled>Export PDF</button><p id="export-message" class="export-message">Enter the beginning and end times to export the session.</p></div>
-<footer>PEAPS · Practising English At Primary School
-<br>This tool has been designed for the teaching staff at the school in Saint-Laurent-des-Arbres (Gard, France)</footer>
+<footer>PEAPS · Practising English At Primary School</footer>
 </main>
 <script src="app.js"></script>
 </body>
