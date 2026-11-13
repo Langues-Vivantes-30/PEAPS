@@ -144,12 +144,13 @@ function updateChart() {
     return TIMER_SCALE_MODE === "max" ? ratio : Math.pow(ratio, TIMER_SHARE_EXPONENT);
   });
 
-  // New words / new sentences use fixed scales (15 and 8), capped at 100%.
+  // Axis order (clockwise from the top): Understanding, Production, Interaction,
+  // % of students who speak, new words (max 15), new sentences (max 8), each capped at 100%.
   const values = [
     ...timerRatios,
+    studentsTotal > 0 ? Math.min(studentsWhoSpeak / studentsTotal, 1) : 0,
     Math.min(words / WORDS_REFERENCE, 1),
-    Math.min(sentences / SENTENCES_REFERENCE, 1),
-    studentsTotal > 0 ? Math.min(studentsWhoSpeak / studentsTotal, 1) : 0
+    Math.min(sentences / SENTENCES_REFERENCE, 1)
   ];
 
   const center = { x: 300, y: 260 };
