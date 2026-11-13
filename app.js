@@ -203,6 +203,7 @@ function startTimer(id) {
   if (timers[id].startedAt !== null) return;
   timers[id].startedAt = Date.now();
   updateTimerUI(id);
+  saveState();
 }
 
 function pauseTimer(id) {
@@ -212,6 +213,7 @@ function pauseTimer(id) {
   timer.startedAt = null;
   updateTimerUI(id);
   updateChart();
+  saveState();
 }
 
 document.querySelectorAll('[data-action="start"]').forEach(button => {
@@ -254,9 +256,13 @@ document.getElementById("reset-button").addEventListener("click", () => {
   document.getElementById("number-sentences").value = 0;
   document.getElementById("number-students").value = 0;
   document.getElementById("number-speak").value = 0;
+  commentsInput.value = "";
+  syncComments();
+  document.getElementById("autosave-note").textContent = "";
   syncSpeakField(false);
   showStudentsMessage("");
   updateSessionDuration();
+  saveState();
 });
 
 document.getElementById("session-start").addEventListener("input", updateSessionDuration);
@@ -309,6 +315,138 @@ document.addEventListener("keydown", event => {
   adjustStudentsWhoSpeak(event.key === "+" ? 1 : -1);
 });
 
+// ---- +/- buttons (words, sentences, students who speak) ----
+document.querySelectorAll(".step-btn").forEach(button => {
+  // Keep the focus where it is, so the + / - keyboard shortcut stays reserved for students who speak.
+  button.addEventListener("mousedown", event => event.preventDefault());
+  button.addEventListener("click", () => {
+    // Leave any field being edited, so the + / - shortcut works right after a click.
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    const delta = Number(button.dataset.step);
+    const targetId = button.dataset.stepTarget;
+    if (targetId === "number-speak") {
+      adjustStudentsWhoSpeak(delta);
+    } else {
+      document.getElementById(targetId).value = Math.max(0, Math.floor(getNumericValue(targetId)) + delta);
+      updateChart();
+    }
+    saveState();
+  });
+});
+
+// ---- Comments (auto-growing, mirrored for the PDF) ----
+const commentsInput = document.getElementById("session-comments");
+const commentsBlock = document.getElementById("comments-block");
+const commentsPrint = document.getElementById("comments-print");
+
+function autosizeComments() {
+  commentsInput.style.height = "auto";
+  commentsInput.style.height = `${commentsInput.scrollHeight + 2}px`;
+}
+
+function syncComments() {
+  commentsPrint.textContent = commentsInput.value;
+  commentsBlock.classList.toggle("is-empty", commentsInput.value.trim() === "");
+  autosizeComments();
+}
+
+commentsInput.addEventListener("input", syncComments);
+window.addEventListener("resize", autosizeComments);
+
+// ---- Automatic save (browser localStorage) ----
+const STORAGE_KEY = "peaps-session-v1";
+let lastSavedState = "";
+
+function collectState() {
+  const now = Date.now();
+  return {
+    v: 1,
+    title: document.getElementById("session-title").value,
+    level: document.getElementById("session-level").value,
+    start: document.getElementById("session-start").value,
+    end: document.getElementById("session-end").value,
+    words: document.getElementById("number-words").value,
+    sentences: document.getElementById("number-sentences").value,
+    students: document.getElementById("number-students").value,
+    speak: document.getElementById("number-speak").value,
+    comments: commentsInput.value,
+    // A running timer is saved with its elapsed time so far; it is restored paused.
+    timers: Object.fromEntries(TIMER_IDS.map(id => [id, Math.round(currentElapsed(id, now))])),
+    wasRunning: TIMER_IDS.filter(id => timers[id].startedAt !== null)
+  };
+}
+
+function isBlankState(state) {
+  const numbersBlank = [state.words, state.sentences, state.students, state.speak]
+    .every(value => value === "" || Number(value) === 0);
+  const textBlank = [state.title, state.level, state.start, state.end, state.comments]
+    .every(value => value === "");
+  return numbersBlank && textBlank && TIMER_IDS.every(id => !state.timers[id]);
+}
+
+function saveState() {
+  try {
+    const state = collectState();
+    if (isBlankState(state)) {
+      localStorage.removeItem(STORAGE_KEY);
+      lastSavedState = "";
+      return;
+    }
+    const serialized = JSON.stringify(state);
+    if (serialized === lastSavedState) return;
+    localStorage.setItem(STORAGE_KEY, serialized);
+    lastSavedState = serialized;
+  } catch (error) {
+    // Storage unavailable (private mode, blocked...): the app keeps working without auto-save.
+  }
+}
+
+function restoreState() {
+  let state;
+  try {
+    state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  } catch (error) {
+    return;
+  }
+  if (!state || state.v !== 1 || isBlankState({ ...state, timers: state.timers || {} })) return;
+
+  const setText = (id, value) => { document.getElementById(id).value = typeof value === "string" ? value : ""; };
+  setText("session-title", state.title);
+  setText("session-level", state.level);
+  setText("session-start", state.start);
+  setText("session-end", state.end);
+  setText("session-comments", state.comments);
+
+  const count = (value, max = Infinity) => {
+    const number = Math.floor(Number(value));
+    return Number.isFinite(number) && number > 0 ? Math.min(number, max) : 0;
+  };
+  document.getElementById("number-words").value = count(state.words);
+  document.getElementById("number-sentences").value = count(state.sentences);
+  document.getElementById("number-students").value = count(state.students, STUDENTS_MAX);
+  document.getElementById("number-speak").value = count(state.speak);
+  syncSpeakField(false);
+
+  TIMER_IDS.forEach(id => {
+    const elapsed = Number(state.timers?.[id]);
+    timers[id].elapsedMs = Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0;
+    timers[id].startedAt = null;
+  });
+  syncComments();
+
+  const paused = Array.isArray(state.wasRunning) && state.wasRunning.length > 0;
+  document.getElementById("autosave-note").textContent = paused
+    ? "Previous session restored from the automatic save. Timers that were running have been paused."
+    : "Previous session restored from the automatic save.";
+  lastSavedState = JSON.stringify(state);
+}
+
+document.addEventListener("input", saveState);
+document.addEventListener("change", saveState);
+setInterval(saveState, 2000);
+window.addEventListener("pagehide", saveState);
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveState(); });
+
 function updateExportState() {
   const start = document.getElementById("session-start").value;
   const end = document.getElementById("session-end").value;
@@ -342,6 +480,7 @@ function refreshRunningDisplays() {
   window.requestAnimationFrame(refreshRunningDisplays);
 }
 
+restoreState();
 TIMER_IDS.forEach(updateTimerUI);
 updateSessionDuration();
 updateChart();

@@ -12,6 +12,7 @@
 <body>
 <main class="app-shell">
 <header class="page-header"><div class="brand-mark"><img src="IMG/logo.png" alt="PEAPS logo"></div><div><p class="eyebrow">PEAPS</p><h1>Practising English At Primary School</h1><p class="subtitle">Classroom language tracker</p></div></header>
+<p id="autosave-note" class="autosave-note" aria-live="polite"></p>
 
 <section class="session-panel" aria-label="Session information">
   <div class="two-columns">
@@ -34,10 +35,10 @@
 <section class="indicators-panel">
   <div class="section-heading"><div><p class="eyebrow">LANGUAGE PRODUCTION</p><h2>Additional indicators</h2></div><p class="keyboard-hint">Keyboard shortcuts: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · students who speak: <kbd>+</kbd> <kbd>−</kbd></p></div>
   <div class="two-columns">
-    <label class="field"><span>Number of new words</span><input id="number-words" type="number" min="0" step="1" value="0"></label>
-    <label class="field"><span>Number of new sentences</span><input id="number-sentences" type="number" min="0" step="1" value="0"></label>
+    <label class="field"><span>Number of new words</span><span class="stepper"><input id="number-words" type="number" min="0" step="1" value="0"><button type="button" class="step-btn" data-step-target="number-words" data-step="-1" aria-label="Decrease number of new words" tabindex="-1">−</button><button type="button" class="step-btn" data-step-target="number-words" data-step="1" aria-label="Increase number of new words" tabindex="-1">+</button></span></label>
+    <label class="field"><span>Number of new sentences</span><span class="stepper"><input id="number-sentences" type="number" min="0" step="1" value="0"><button type="button" class="step-btn" data-step-target="number-sentences" data-step="-1" aria-label="Decrease number of new sentences" tabindex="-1">−</button><button type="button" class="step-btn" data-step-target="number-sentences" data-step="1" aria-label="Increase number of new sentences" tabindex="-1">+</button></span></label>
 	<label class="field"><span>Number of students</span><input id="number-students" type="text" inputmode="numeric" maxlength="2" autocomplete="off" value="0"></label>
-	<label class="field"><span>Number of students who speak</span><input id="number-speak" type="number" min="0" max="0" step="1" value="0"></label>
+	<label class="field"><span>Number of students who speak</span><span class="stepper"><input id="number-speak" type="number" min="0" max="0" step="1" value="0"><button type="button" class="step-btn" data-step-target="number-speak" data-step="-1" aria-label="Decrease number of students who speak" tabindex="-1">−</button><button type="button" class="step-btn" data-step-target="number-speak" data-step="1" aria-label="Increase number of students who speak" tabindex="-1">+</button></span></label>
   </div>
   <p id="students-message" class="field-error" aria-live="polite"></p>
 </section>
@@ -45,6 +46,10 @@
 <section class="chart-panel">
   <div class="section-heading"><div><p class="eyebrow">SESSION OVERVIEW</p><h2>Language activity balance</h2></div><button id="reset-button" class="button button-reset" type="button">Reset session</button></div>
   <div class="accumulated-summary"><span>Accumulated time</span><strong id="session-duration">— min</strong><small>Session duration</small></div>
+  <div class="comments-block is-empty" id="comments-block">
+    <label class="field"><span>Comments</span><textarea id="session-comments" rows="2" placeholder="Observations, points to discuss…"></textarea></label>
+    <div class="comments-print" id="comments-print"></div>
+  </div>
   <div class="chart-layout">
     <div class="radar-wrap">
       <svg id="radar-chart" viewBox="0 0 600 510" role="img" aria-label="Five-axis radar chart">
